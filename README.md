@@ -1,66 +1,77 @@
-# Agente de WhatsApp com IA
+# AI WhatsApp Agent
 
-Atendente virtual de WhatsApp feito com Claude (Anthropic). Ele conversa como uma pessoa da recepção, consulta a agenda, marca, lista e cancela horários, entende áudio e devolve a conversa para um humano quando o dono responde pelo app.
+[![tests](https://github.com/rodrigomedeiros91-source/agente-whatsapp-ia/actions/workflows/tests.yml/badge.svg)](https://github.com/rodrigomedeiros91-source/agente-whatsapp-ia/actions/workflows/tests.yml)
 
-Criei o projeto para um cliente real, uma barbearia no Rio de Janeiro. Este repositório traz o **núcleo genérico** com um negócio fictício (o "Studio Exemplo"). A integração com o sistema de agenda do cliente e os dados dele ficam num repositório privado.
+*[Leia em português](README.pt-BR.md)*
 
-> **English summary:** WhatsApp customer-service agent built on Claude's tool use. It books, lists and cancels appointments, transcribes voice notes, and hands the chat back to a human when the owner replies from the WhatsApp Business app. It includes a business-agnostic core, verified webhooks, per-contact queues, encrypted state, prompt caching, cost tracking and 162 offline test checks. It was built for a real barbershop client; this public version ships a fictional business.
+<img src="docs/demo.png" alt="Demo conversation: the agent books a haircut and beard in English" width="420">
 
-## Como funciona
+A WhatsApp customer-service agent built on Claude (Anthropic). It talks like a front-desk person, checks the calendar, books, lists and cancels appointments, understands voice notes, and hands the conversation back to a human when the business owner replies from the WhatsApp Business app.
+
+I built it for a real client, a barbershop in Rio de Janeiro. This repository contains the **business-agnostic core** plus a fictional business ("Studio Exemplo"). The client's scheduling integration and data live in a private repository.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    C[Cliente no WhatsApp] -->|mensagem / áudio| W[Meta Cloud API ou YCloud]
-    W -->|webhook assinado| S[server.js<br/>fila por contato + junta rajadas]
-    S -->|áudio| T[Whisper: áudio vira texto]
+    C[Customer on WhatsApp] -->|message / voice note| W[Meta Cloud API or YCloud]
+    W -->|signed webhook| S[server.js<br/>per-contact queue + burst merging]
+    S -->|audio| T[Whisper: speech to text]
     T --> S
-    S --> A[nucleo/claude.js<br/>loop de ferramentas]
+    S --> A[nucleo/claude.js<br/>tool-use loop]
     A <-->|prompt + tools| L[Claude API]
-    A <-->|ver, marcar, cancelar| N[Negócio plugável<br/>src/exemplo]
-    S -->|texto, botões, listas| W
-    D[Dono responde pelo app] -->|eco| S
-    S -.->|agente se cala por 4 h| A
+    A <-->|check, book, cancel| N[Pluggable business<br/>src/exemplo]
+    S -->|text, buttons, lists| W
+    D[Owner replies from the app] -->|echo| S
+    S -.->|agent stays quiet for 4 h| A
 ```
 
-O núcleo (`src/nucleo/`) não sabe qual negócio está atendendo. Cada negócio é uma pasta com a mesma interface: prompt, ferramentas e `runTool`. Para trocar de negócio, basta trocar a pasta.
+The core (`src/nucleo/`) doesn't know which business it serves. Each business is a folder with the same interface: prompt, tools and `runTool`. Switching business means switching the folder.
 
-## O que tem de interessante aqui
+## Engineering decisions
 
-| Problema real | Solução |
+| Real problem | Solution |
 | --- | --- |
-| Cliente manda "oi", "quero cortar", "amanhã" em 3 mensagens | Junta a rajada em uma só (4 s) e responde uma vez |
-| Duas mensagens chegam juntas e uma apaga a outra | Fila por contato: mesma pessoa em ordem, pessoas diferentes em paralelo |
-| O dono quer continuar usando o app no mesmo número | Coexistência via YCloud: quando ele responde, o agente fica calado naquela conversa |
-| Webhook é uma URL pública | Assinatura HMAC-SHA256 conferida em cada chamada |
-| O modelo inventa horário | Toda resposta sobre horário passa por ferramenta; a agenda é a única fonte da verdade |
-| Erro numa ferramenta derrubava a conversa | Erro vira instrução para o modelo seguir por outro caminho |
-| Deploy apagava conversas em andamento | Estado cifrado em disco (AES-256-GCM), gravado no desligamento |
-| Custo por mensagem invisível | Prompt caching no bloco estável e conta de custo por conversa no log |
-| Resposta com cara de robô | Filtro de tom e botões e listas nativos do WhatsApp a partir de `[[opcoes: A \| B]]` |
-| Agente opinando sobre saúde | Limite de saúde compartilhado, verificado por teste em todo prompt de negócio |
+| Customers send "hi", "want a haircut", "tomorrow" as 3 messages | Bursts are merged (4 s window) and answered once |
+| Two messages arrive together and one overwrites the other | Per-contact queue: same person in order, different people in parallel |
+| The owner wants to keep using the app on the same number | Coexistence via YCloud: when the owner replies, the agent goes quiet in that chat |
+| The webhook is a public URL | HMAC-SHA256 signature checked on every call |
+| The model invents time slots | Every answer about availability goes through a tool; the calendar is the single source of truth |
+| A tool error used to kill the conversation | Errors become instructions for the model to take another path |
+| Deploys wiped in-progress conversations | Encrypted state on disk (AES-256-GCM), saved on shutdown |
+| Cost per message was invisible | Prompt caching on the stable block and per-conversation cost log |
+| Robotic replies | Tone filter, plus native WhatsApp buttons and lists from `[[opcoes: A \| B]]` |
+| An agent giving health advice | Shared health limit, enforced by a test on every business prompt |
 
-## Rodar
+## Run
 
 ```bash
 npm install
-cp .env.example .env   # preencha ANTHROPIC_API_KEY e as chaves do WhatsApp
+cp .env.example .env   # fill in ANTHROPIC_API_KEY and the WhatsApp keys
 npm start
 ```
 
-Testes (sem rede e sem chave de API):
+Try the agent in your terminal, no WhatsApp needed (only `ANTHROPIC_API_KEY`):
+
+```bash
+npm run demo                                   # free chat
+npm run demo -- "Hi! Can I book a haircut?"    # scripted, one message per argument
+```
+
+Tests (no network, no API key):
 
 ```bash
 npm test
 ```
 
-Para publicar, há um `Dockerfile` pronto (usei o Railway). O endpoint `/health` mostra qual versão está no ar.
+A `Dockerfile` is included (I deploy on Railway). The `/health` endpoint shows which version is live.
 
 ## Stack
 
-Node.js 18+, Express, Anthropic SDK (Claude com tool use e prompt caching), WhatsApp Cloud API (Meta) e YCloud, Whisper para áudio, Docker.
+Node.js 18+, Express, Anthropic SDK (Claude tool use and prompt caching), WhatsApp Cloud API (Meta) and YCloud, Whisper for audio, Docker.
 
-## Autor
+## Author
 
-**Rodrigo Medeiros**: consultor de IA e automação, Rio de Janeiro. [LinkedIn](https://www.linkedin.com/in/rodrigo-r-244203161/)
+**Rodrigo Medeiros**, AI & automation consultant, Rio de Janeiro. [LinkedIn](https://www.linkedin.com/in/rodrigo-r-244203161/)
 
-Escrito com desenvolvimento assistido por IA (Claude Code), com revisão, testes e decisões de arquitetura meus.
+Written with AI-assisted development (Claude Code); the review, tests and architecture decisions are mine. Code comments are in Portuguese, the language of the client and of the team that maintains it.
