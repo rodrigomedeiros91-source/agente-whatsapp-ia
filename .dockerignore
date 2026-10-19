@@ -1,0 +1,33 @@
+# O que NÃO entra na imagem que vai para o servidor.
+#
+# Vale o mesmo raciocínio do .gitignore, e por um motivo a mais: o node_modules
+# instalado no Windows tem binário de Windows dentro. Se ele fosse copiado para
+# dentro de uma imagem Linux, o agente quebraria de um jeito difícil de
+# entender, com erro de módulo nativo.
+
+node_modules
+npm-debug.log*
+
+# Credenciais — nunca entram na imagem. As variáveis chegam pelo painel da
+# hospedagem, que é o único lugar certo para elas.
+.env
+.env.local
+client_secret_*.json
+*credentials*.json
+token.json
+*.pem
+*.key
+
+# Dado de paciente. O servidor cria o dele no disco montado, cifrado.
+data/
+*.jsonl
+
+# Coisas que não servem para rodar: documentação, pesquisa, vídeo de venda.
+docs/
+*.mp4
+*.mov
+.git
+.github
+
+# Dados do cliente (conversas, ficha, telefone pessoal). Nunca na imagem.
+cliente/

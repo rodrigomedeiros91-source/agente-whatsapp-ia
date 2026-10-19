@@ -1,0 +1,22 @@
+# === Credenciais: NUNCA commitar ===
+# As chaves da Anthropic, da Meta/YCloud e da agenda vivem no .env da máquina
+# e nas variáveis da hospedagem. Em nenhum outro lugar.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# === Dados de cliente: NUNCA commitar ===
+cliente/
+
+# Estado cifrado das conversas, quando roda no PC.
+data/
+*.jsonl
+
+# === Dependências e temporários ===
+node_modules/
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db
